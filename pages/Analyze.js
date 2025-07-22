@@ -8,67 +8,94 @@ import {
   SafeAreaView,
 } from 'react-native';
 
-const AnalyzePage = () => (
-  <SafeAreaView style={styles.container}>
-    <ScrollView contentContainerStyle={styles.analyzeContainer}>
-      <View style={styles.analyzeHeader}>
-        <Text style={styles.analyzeTitle}>Analysis Results</Text>
-        <Text style={styles.analyzeDate}>January 15, 2025</Text>
-      </View>
+const AnalyzePage = ({ top3 }) => {
+  // top3 = [
+  //   { name: 'Atopic Dermatitis (Eczema)', confidence: 0.85, severity: 'Moderate' },
+  //   { name: 'Psoriasis', confidence: 0.1, severity: 'Mild' },
+  //   { name: 'Contact Dermatitis', confidence: 0.05, severity: 'Mild' },
+  // ];
 
-      <View style={styles.resultCard}>
-        <View style={styles.resultHeader}>
-          <Text style={styles.resultTitle}>Detected Condition</Text>
-          <View style={styles.confidenceBadge}>
-            <Text style={styles.confidenceText}>85% Confidence</Text>
-          </View>
+  // Format current date as string
+  const dateString = new Date().toLocaleDateString(undefined, {
+    year: 'numeric',
+    month: 'long',
+    day: 'numeric',
+  });
+
+  return (
+    <SafeAreaView style={styles.container}>
+      <ScrollView contentContainerStyle={styles.analyzeContainer}>
+        <View style={styles.analyzeHeader}>
+          <Text style={styles.analyzeTitle}>Analysis Results</Text>
+          <Text style={styles.analyzeDate}>{dateString}</Text>
         </View>
-        <Text style={styles.conditionName}>Atopic Dermatitis (Eczema)</Text>
-        <Text style={styles.severityText}>Severity: Moderate</Text>
-      </View>
 
-      <View style={styles.card}>
-        <Text style={styles.cardTitle}>Key Findings</Text>
-        <Text style={styles.cardText}>
-          • Redness and inflammation detected
-          {'\n'}• Dry, scaly patches identified
-          {'\n'}• Pattern consistent with eczema
-          {'\n'}• No signs of infection present
-        </Text>
-      </View>
+        {top3 && top3.length > 0 ? (
+          top3.map(({ name, confidence, severity }, idx) => (
+            <View key={idx} style={styles.resultCard}>
+              <View style={styles.resultHeader}>
+                <Text style={styles.resultTitle}>Detected Condition #{idx + 1}</Text>
+                <View style={styles.confidenceBadge}>
+                  <Text style={styles.confidenceText}>
+                    {(confidence * 100).toFixed(1)}% Confidence
+                  </Text>
+                </View>
+              </View>
+              <Text style={styles.conditionName}>{name}</Text>
+              {severity ? (
+                <Text style={styles.severityText}>Severity: {severity}</Text>
+              ) : null}
+            </View>
+          ))
+        ) : (
+          <View style={styles.resultCard}>
+            <Text style={styles.conditionName}>No results found</Text>
+          </View>
+        )}
 
-      <View style={styles.card}>
-        <Text style={styles.cardTitle}>Recommended Next Steps</Text>
-        <Text style={styles.cardText}>
-          1. Consult with a dermatologist for professional diagnosis
-          {'\n'}2. Apply fragrance-free moisturizer twice daily
-          {'\n'}3. Avoid known triggers (harsh soaps, certain fabrics)
-          {'\n'}4. Consider over-the-counter hydrocortisone cream
-          {'\n'}5. Track symptoms and potential triggers
-        </Text>
-      </View>
+        <View style={styles.card}>
+          <Text style={styles.cardTitle}>Key Findings</Text>
+          <Text style={styles.cardText}>
+            • Redness and inflammation detected
+            {'\n'}• Dry, scaly patches identified
+            {'\n'}• Pattern consistent with eczema
+            {'\n'}• No signs of infection present
+          </Text>
+        </View>
 
-      <View style={styles.card}>
-        <Text style={styles.cardTitle}>When to See a Doctor</Text>
-        <Text style={styles.cardText}>
-          Seek medical attention if you experience:
-          {'\n'}• Severe itching that interferes with sleep
-          {'\n'}• Signs of infection (pus, warmth, red streaks)
-          {'\n'}• Symptoms that don't improve with treatment
-          {'\n'}• Widespread rash covering large areas
-        </Text>
-      </View>
+        <View style={styles.card}>
+          <Text style={styles.cardTitle}>Recommended Next Steps</Text>
+          <Text style={styles.cardText}>
+            1. Consult with a dermatologist for professional diagnosis
+            {'\n'}2. Apply fragrance-free moisturizer twice daily
+            {'\n'}3. Avoid known triggers (harsh soaps, certain fabrics)
+            {'\n'}4. Consider over-the-counter hydrocortisone cream
+            {'\n'}5. Track symptoms and potential triggers
+          </Text>
+        </View>
 
-      <TouchableOpacity style={styles.primaryButton}>
-        <Text style={styles.primaryButtonText}>Save Results</Text>
-      </TouchableOpacity>
+        <View style={styles.card}>
+          <Text style={styles.cardTitle}>When to See a Doctor</Text>
+          <Text style={styles.cardText}>
+            Seek medical attention if you experience:
+            {'\n'}• Severe itching that interferes with sleep
+            {'\n'}• Signs of infection (pus, warmth, red streaks)
+            {'\n'}• Symptoms that don't improve with treatment
+            {'\n'}• Widespread rash covering large areas
+          </Text>
+        </View>
 
-      <TouchableOpacity style={styles.secondaryButton}>
-        <Text style={styles.secondaryButtonText}>Scan Again</Text>
-      </TouchableOpacity>
-    </ScrollView>
-  </SafeAreaView>
-);
+        <TouchableOpacity style={styles.primaryButton}>
+          <Text style={styles.primaryButtonText}>Save Results</Text>
+        </TouchableOpacity>
+
+        <TouchableOpacity style={styles.secondaryButton}>
+          <Text style={styles.secondaryButtonText}>Scan Again</Text>
+        </TouchableOpacity>
+      </ScrollView>
+    </SafeAreaView>
+  );
+};
 
 const styles = StyleSheet.create({
   container: {

@@ -11,13 +11,15 @@ import BottomNavigation from './components/NavBar';
 const App: React.FC = () => {
   const [currentScreen, setCurrentScreen] = useState<string>('welcome');
   const [activeTab, setActiveTab] = useState<string>('home');
+  const [top3Pred, setTop3Pred] = useState<any>(null);
 
   const handleLogin = (): void => {
     setCurrentScreen('main');
     setActiveTab('home');
   };
 
-  const handleImageCaptured = (): void => {
+  const handleAnalyzeTransition = (top3: any): void => {
+    setTop3Pred(top3);
     setActiveTab('analyze');
   };
 
@@ -34,9 +36,9 @@ const App: React.FC = () => {
       case 'home':
         return <HomePage />;
       case 'scan':
-        return <ScanPage onImageCaptured={handleImageCaptured} />;
+        return <ScanPage onModelFinished={handleAnalyzeTransition} />;
       case 'analyze':
-        return <AnalyzePage />;
+        return <AnalyzePage top3={top3Pred} />;
       default:
         return <HomePage />;
     }
