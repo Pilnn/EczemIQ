@@ -11,15 +11,18 @@ import BottomNavigation from './components/NavBar';
 const App: React.FC = () => {
   const [currentScreen, setCurrentScreen] = useState<string>('welcome');
   const [activeTab, setActiveTab] = useState<string>('home');
-  const [top3Pred, setTop3Pred] = useState<any>(null);
+  const [modelProb, setModelProb] = useState<any>(null);
 
   const handleLogin = (): void => {
     setCurrentScreen('main');
     setActiveTab('home');
   };
 
-  const handleAnalyzeTransition = (top3: any): void => {
-    setTop3Pred(top3);
+  const handleReScan = (): void => {
+    setActiveTab('scan');
+  }
+  const handleAnalyzeTransition = (probs: any): void => {
+    setModelProb(probs);
     setActiveTab('analyze');
   };
 
@@ -38,7 +41,7 @@ const App: React.FC = () => {
       case 'scan':
         return <ScanPage onModelFinished={handleAnalyzeTransition} />;
       case 'analyze':
-        return <AnalyzePage top3={top3Pred} />;
+        return <AnalyzePage probabilities={modelProb} onScanAgain= {handleReScan}/>;
       default:
         return <HomePage />;
     }

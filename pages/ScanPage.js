@@ -71,42 +71,18 @@ const loadAndRun = async () => {
     const modelOutput = await model.model.run([preprocessedInput]);
     console.log(modelOutput);
     // Process the model output to get predictions
-    const results = await processModelOutput(modelOutput);
     
-    console.log('Analysis complete:', results);
-
+    const probabilities=modelOutput[0];
     // Call the transition function with formatted results
-    onModelFinished({
-      success: true,
-      predictions: results.predictions,
-      image: capturedImage
-    });
+    onModelFinished(probabilities);
 
-    // Show results to user
-    const topPrediction = results.predictions[0];
-    Alert.alert(
-      'Analysis Complete',
-      `Top prediction: ${topPrediction.label} (${topPrediction.confidence}% confidence)`,
-      [
-        {
-          text: 'View Details',
-          onPress: () => {
-            // Navigate to results or show detailed view
-          }
-        },
-        { text: 'OK' }
-      ]
-    );
+    
 
   } catch (error) {
     console.error('Error running ResNet-152 model:', error);
     Alert.alert('Error', `Failed to analyze image: ${error.message}`);
     
-    onModelFinished({
-      success: false,
-      error: error.message,
-      image: capturedImage
-    });
+    
   } finally {
     setIsAnalyzing(false);
   }
@@ -229,115 +205,6 @@ const applyImageNetNormalization = (pixelData, mean, std) => {
   
   return normalizedData;
 };
-
-// Process the model output and format results
-const processModelOutput = async (modelOutput) => {
-  try {
-    console.log('Processing ResNet-152 model output...');
-    
-    // Define your skin condition class labels
-    const classLabels = {
-      0: 'Eczema',
-      1: 'Warts Molluscum and other Viral Infections',
-      2: 'Melanoma',
-      3: 'Atopic Dermatitis',
-      4: 'Basal Cell Carcinoma (BCC)',
-      5: 'Melanocytic Nevi (NV)',
-      6: 'Benign Keratosis-like Lesions (BKL)',
-      7: 'Psoriasis pictures Lichen Planus and related diseases',
-      8: 'Seborrheic Keratoses and other Benign Tumors',
-      9: 'Tinea Ringworm Candidiasis and other Fungal Infections'
-    };
-
-    // Extract probabilities from model output
-    let probabilities;
-    
-    if (Array.isArray(modelOutput) && modelOutput.length > 0) {
-      // Handle different output formats
-      if (modelOutput[0].data) {
-        probabilities = Array.from(modelOutput[0].data);
-      } else if (modelOutput[0].values) {
-        probabilities = Array.from(modelOutput[0].values);
-      } else if (Array.isArray(modelOutput[0])) {
-        probabilities = modelOutput[0];
-      } else {
-        probabilities = modelOutput;
-      }
-    } else if (modelOutput.data) {
-      probabilities = Array.from(modelOutput.data);
-    } else {
-      throw new Error('Unexpected model output format');
-    }
-
-    console.log('Raw model probabilities:', probabilities);
-
-    // Apply softmax if the output appears to be logits (not already probabilities)
-    const maxValue = Math.max(...probabilities);
-    const minValue = Math.min(...probabilities);
-    const range = maxValue - minValue;
-    
-    let finalProbabilities;
-    if (range > 10 || maxValue > 1 || minValue < 0) {
-      // Likely logits, apply softmax
-      console.log('Applying softmax to logits...');
-      finalProbabilities = applySoftmax(probabilities);
-    } else {
-      // Already probabilities
-      console.log('Output appears to be probabilities already');
-      finalProbabilities = probabilities;
-    }
-
-    // Create prediction objects with labels
-    const predictions = finalProbabilities.map((probability, index) => ({
-      index,
-      probability: probability,
-      label: classLabels[index] || `Unknown Class ${index}`,
-      confidence: Math.round(probability * 100)
-    }));
-
-    // Sort by probability and get top 3
-    const sortedPredictions = predictions
-      .sort((a, b) => b.probability - a.probability)
-      .slice(0, 3);
-
-    console.log('Top 3 predictions:', sortedPredictions);
-
-    // Format for the analyze page
-    const formattedPredictions = sortedPredictions.map(pred => ({
-      name: pred.label,
-      confidence: pred.probability,
-      severity: getConditionSeverity(pred.confidence) // Optional helper function
-    }));
-
-    return {
-      predictions: formattedPredictions,
-      rawProbabilities: finalProbabilities,
-      success: true
-    };
-
-  } catch (error) {
-    console.error('Error processing model output:', error);
-    throw new Error(`Output processing failed: ${error.message}`);
-  }
-};
-
-// Helper function to apply softmax normalization
-const applySoftmax = (logits) => {
-  // Numerical stability: subtract max value
-  const maxLogit = Math.max(...logits);
-  const expValues = logits.map(x => Math.exp(x - maxLogit));
-  const sumExp = expValues.reduce((sum, exp) => sum + exp, 0);
-  return expValues.map(exp => exp / sumExp);
-};
-
-// Optional helper to determine condition severity based on confidence
-const getConditionSeverity = (confidence) => {
-  if (confidence > 0.8) return 'High';
-  if (confidence > 0.6) return 'Moderate';
-  if (confidence > 0.4) return 'Mild';
-  return 'Low';
-};
-
 
   const handleCameraCapture = () => {
     launchCamera(imagePickerOptions, (response) => {

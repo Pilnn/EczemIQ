@@ -8,12 +8,44 @@ import {
   SafeAreaView,
 } from 'react-native';
 
-const AnalyzePage = ({ top3 }) => {
-  // top3 = [
-  //   { name: 'Atopic Dermatitis (Eczema)', confidence: 0.85, severity: 'Moderate' },
-  //   { name: 'Psoriasis', confidence: 0.1, severity: 'Mild' },
-  //   { name: 'Contact Dermatitis', confidence: 0.05, severity: 'Mild' },
-  // ];
+const AnalyzePage = ({ probabilities, onScanAgain }) => {
+  // Disease labels mapping
+  const diseaseLabels = [
+    'Eczema',
+    'Warts Molluscum and other Viral Infections',
+    'Melanoma',
+    'Atopic Dermatitis',
+    'Basal Cell Carcinoma (BCC)',
+    'Melanocytic Nevi (NV)',
+    'Benign Keratosis-like Lesions (BKL)',
+    'Psoriasis pictures Lichen Planus and related diseases',
+    'Seborrheic Keratoses and other Benign Tumors',
+    'Tinea Ringworm Candidiasis and other Fungal Infections'
+  ];
+
+  // Process probabilities to get top 3
+  const getTop3Predictions = () => {
+    if (!probabilities || probabilities.length === 0) {
+      return [];
+    }
+
+    // Convert Float32Array to regular array and create objects with index
+    const probabilityArray = Array.from(probabilities);
+    const predictions = probabilityArray.map((prob, index) => ({
+      index,
+      probability: prob,
+      name: diseaseLabels[index],
+    }));
+
+    // Sort by probability (descending) and take top 3
+    const top3 = predictions
+      .sort((a, b) => b.probability - a.probability)
+      .slice(0, 3);
+    console.log(top3);
+    return top3;
+  };
+
+  const top3Predictions = getTop3Predictions();
 
   // Format current date as string
   const dateString = new Date().toLocaleDateString(undefined, {
@@ -21,6 +53,78 @@ const AnalyzePage = ({ top3 }) => {
     month: 'long',
     day: 'numeric',
   });
+
+  // Determine severity based on the condition type (you can customize this logic)
+  const getSeverity = (conditionName, confidence) => {
+    const severeConditions = ['Melanoma', 'Basal Cell Carcinoma (BCC)'];
+    const moderateConditions = ['Psoriasis pictures Lichen Planus and related diseases', 'Atopic Dermatitis'];
+    
+    if (severeConditions.includes(conditionName)) {
+      return confidence > 0.7 ? 'High' : 'Moderate';
+    } else if (moderateConditions.includes(conditionName)) {
+      return 'Moderate';
+    }
+    return 'Low to Moderate';
+  };
+
+  // Get condition-specific recommendations
+  const getRecommendations = (topCondition) => {
+    if (!topCondition) return null;
+    
+    const recommendations = {
+      'Eczema': {
+        keyFindings: [
+          'Redness and inflammation detected',
+          'Dry, scaly patches identified',
+          'Pattern consistent with eczema',
+          'No signs of infection present'
+        ],
+        nextSteps: [
+          'Consult with a dermatologist for professional diagnosis',
+          'Apply fragrance-free moisturizer twice daily',
+          'Avoid known triggers (harsh soaps, certain fabrics)',
+          'Consider over-the-counter hydrocortisone cream',
+          'Track symptoms and potential triggers'
+        ]
+      },
+      'Melanoma': {
+        keyFindings: [
+          'Irregular pigmentation detected',
+          'Asymmetric features observed',
+          'Border irregularity noted',
+          'Requires immediate medical evaluation'
+        ],
+        nextSteps: [
+          'Schedule an urgent dermatologist appointment',
+          'Avoid sun exposure on the affected area',
+          'Document any changes in size or color',
+          'Do not attempt self-treatment',
+          'Prepare medical history for consultation'
+        ]
+      },
+      // Add more condition-specific recommendations as needed
+      default: {
+        keyFindings: [
+          'Skin abnormality detected',
+          'Further evaluation recommended',
+          'Pattern requires professional assessment',
+          'Monitor for changes'
+        ],
+        nextSteps: [
+          'Consult with a dermatologist for accurate diagnosis',
+          'Keep the area clean and dry',
+          'Avoid scratching or irritating the area',
+          'Document any changes with photos',
+          'Note any associated symptoms'
+        ]
+      }
+    };
+    
+    return recommendations[topCondition] || recommendations.default;
+  };
+
+  const topConditionName = top3Predictions[0]?.name;
+  const recommendations = getRecommendations(topConditionName);
 
   return (
     <SafeAreaView style={styles.container}>
@@ -30,21 +134,35 @@ const AnalyzePage = ({ top3 }) => {
           <Text style={styles.analyzeDate}>{dateString}</Text>
         </View>
 
-        {top3 && top3.length > 0 ? (
-          top3.map(({ name, confidence, severity }, idx) => (
+        {top3Predictions && top3Predictions.length > 0 ? (
+          top3Predictions.map((prediction, idx) => (
             <View key={idx} style={styles.resultCard}>
               <View style={styles.resultHeader}>
-                <Text style={styles.resultTitle}>Detected Condition #{idx + 1}</Text>
-                <View style={styles.confidenceBadge}>
+                <Text style={styles.resultTitle}>
+                  {idx === 0 ? 'Most Likely' : `Possibility #${idx + 1}`}
+                </Text>
+                <View style={[
+                  styles.confidenceBadge,
+                  prediction.probability > 0.7 ? styles.highConfidence :
+                  prediction.probability > 0.3 ? styles.mediumConfidence :
+                  styles.lowConfidence
+                ]}>
                   <Text style={styles.confidenceText}>
-                    {(confidence * 100).toFixed(1)}% Confidence
+                    {(prediction.probability * 100).toFixed(1)}% Confidence
                   </Text>
                 </View>
               </View>
-              <Text style={styles.conditionName}>{name}</Text>
-              {severity ? (
-                <Text style={styles.severityText}>Severity: {severity}</Text>
-              ) : null}
+              <Text style={[
+                styles.conditionName,
+                idx === 0 ? styles.primaryCondition : styles.secondaryCondition
+              ]}>
+                {prediction.name}
+              </Text>
+              {idx === 0 && (
+                <Text style={styles.severityText}>
+                  Severity: {getSeverity(prediction.name, prediction.probability)}
+                </Text>
+              )}
             </View>
           ))
         ) : (
@@ -53,24 +171,32 @@ const AnalyzePage = ({ top3 }) => {
           </View>
         )}
 
-        <View style={styles.card}>
-          <Text style={styles.cardTitle}>Key Findings</Text>
-          <Text style={styles.cardText}>
-            • Redness and inflammation detected
-            {'\n'}• Dry, scaly patches identified
-            {'\n'}• Pattern consistent with eczema
-            {'\n'}• No signs of infection present
-          </Text>
-        </View>
+        {recommendations && (
+          <>
+            <View style={styles.card}>
+              <Text style={styles.cardTitle}>Key Findings</Text>
+              <Text style={styles.cardText}>
+                {recommendations.keyFindings.map((finding, idx) => 
+                  `• ${finding}${idx < recommendations.keyFindings.length - 1 ? '\n' : ''}`
+                ).join('')}
+              </Text>
+            </View>
+
+            <View style={styles.card}>
+              <Text style={styles.cardTitle}>Recommended Next Steps</Text>
+              <Text style={styles.cardText}>
+                {recommendations.nextSteps.map((step, idx) => 
+                  `${idx + 1}. ${step}${idx < recommendations.nextSteps.length - 1 ? '\n' : ''}`
+                ).join('')}
+              </Text>
+            </View>
+          </>
+        )}
 
         <View style={styles.card}>
-          <Text style={styles.cardTitle}>Recommended Next Steps</Text>
+          <Text style={styles.cardTitle}>⚠️ Important Notice</Text>
           <Text style={styles.cardText}>
-            1. Consult with a dermatologist for professional diagnosis
-            {'\n'}2. Apply fragrance-free moisturizer twice daily
-            {'\n'}3. Avoid known triggers (harsh soaps, certain fabrics)
-            {'\n'}4. Consider over-the-counter hydrocortisone cream
-            {'\n'}5. Track symptoms and potential triggers
+            This analysis is for informational purposes only and should not replace professional medical advice. Always consult with a qualified healthcare provider for accurate diagnosis and treatment.
           </Text>
         </View>
 
@@ -78,10 +204,11 @@ const AnalyzePage = ({ top3 }) => {
           <Text style={styles.cardTitle}>When to See a Doctor</Text>
           <Text style={styles.cardText}>
             Seek medical attention if you experience:
-            {'\n'}• Severe itching that interferes with sleep
+            {'\n'}• Rapid changes in size, color, or shape
+            {'\n'}• Bleeding, oozing, or crusting
+            {'\n'}• Persistent itching or pain
             {'\n'}• Signs of infection (pus, warmth, red streaks)
-            {'\n'}• Symptoms that don't improve with treatment
-            {'\n'}• Widespread rash covering large areas
+            {'\n'}• Any concerns about your skin condition
           </Text>
         </View>
 
@@ -89,7 +216,10 @@ const AnalyzePage = ({ top3 }) => {
           <Text style={styles.primaryButtonText}>Save Results</Text>
         </TouchableOpacity>
 
-        <TouchableOpacity style={styles.secondaryButton}>
+        <TouchableOpacity 
+          style={styles.secondaryButton}
+          onPress={onScanAgain}
+        >
           <Text style={styles.secondaryButtonText}>Scan Again</Text>
         </TouchableOpacity>
       </ScrollView>
@@ -140,26 +270,39 @@ const styles = StyleSheet.create({
     marginBottom: 16,
   },
   resultTitle: {
-    fontSize: 20,
+    fontSize: 18,
     fontWeight: '600',
     color: '#1f2937',
   },
   confidenceBadge: {
-    backgroundColor: '#dcfce7',
     borderRadius: 20,
     paddingHorizontal: 12,
-    paddingVertical: 4,
+    paddingVertical: 6,
+  },
+  highConfidence: {
+    backgroundColor: '#dc2626',
+  },
+  mediumConfidence: {
+    backgroundColor: '#f59e0b',
+  },
+  lowConfidence: {
+    backgroundColor: '#dcfce7',
   },
   confidenceText: {
     fontSize: 14,
-    color: '#166534',
-    fontWeight: '500',
+    color: 'white',
+    fontWeight: '600',
   },
   conditionName: {
-    fontSize: 24,
+    fontSize: 20,
     fontWeight: 'bold',
-    color: '#dc2626',
     marginBottom: 8,
+  },
+  primaryCondition: {
+    color: '#dc2626',
+  },
+  secondaryCondition: {
+    color: '#6b7280',
   },
   severityText: {
     fontSize: 16,
@@ -187,7 +330,6 @@ const styles = StyleSheet.create({
     fontSize: 16,
     color: '#4b5563',
     lineHeight: 24,
-    marginBottom: 8,
   },
   primaryButton: {
     backgroundColor: '#2563eb',
