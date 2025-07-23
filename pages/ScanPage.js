@@ -12,6 +12,10 @@ import {
 } from 'react-native';
 import { launchCamera, launchImageLibrary, ImagePickerResponse } from 'react-native-image-picker';
 import { TensorflowModel, useTensorflowModel } from 'react-native-fast-tflite';
+import ImageResizer from 'react-native-image-resizer';
+import ImageBase64 from 'react-native-image-base64';
+import jpeg from 'jpeg-js';
+
 
 const { width, height } = Dimensions.get('window');
 
@@ -90,120 +94,52 @@ const loadAndRun = async () => {
 
 // ResNet-152 specific image preprocessing
 const preprocessImageForResNet152 = async (imageUri) => {
+  const INPUT_SIZE = 224;
+  const IMAGENET_MEAN_BGR = [103.939, 116.779, 123.68];
+
   try {
-    console.log('Preprocessing image for ResNet-152...');
+    // Step 1: Resize image
+    const resized = await ImageResizer.createResizedImage(
+      imageUri, INPUT_SIZE, INPUT_SIZE, 'JPEG', 100
+    );
+
+    // Step 2: Get base64
+    const base64 = await ImageBase64.getBase64String(resized.uri);
     
-    // ResNet-152 expects 224x224x3 input with ImageNet normalization
-    const INPUT_SIZE = 224;
-    
-    // ImageNet normalization values
-    const IMAGENET_MEAN = [0.485, 0.456, 0.406];
-    const IMAGENET_STD = [0.229, 0.224, 0.225];
-
-    // Use react-native-image-crop-picker for preprocessing
-    return await processImageWithCropPicker(imageUri, INPUT_SIZE, IMAGENET_MEAN, IMAGENET_STD);
-
-  } catch (error) {
-    console.error('Image preprocessing failed:', error);
-    throw new Error(`Image preprocessing failed: ${error.message}`);
-  }
-};
-
-// Complete image preprocessing using react-native-image-crop-picker
-const processImageWithCropPicker = async (imageUri, inputSize, mean, std) => {
-  const ImageCropPicker = require('react-native-image-crop-picker');
-  
-  try {
-    // Step 1: Resize and get base64 data
-    const processedImage = await ImageCropPicker.openCropper({
-      path: imageUri,
-      width: inputSize,
-      height: inputSize,
-      mediaType: 'photo',
-      includeBase64: true,
-      cropping: true,
-      compressImageMaxWidth: inputSize,
-      compressImageMaxHeight: inputSize,
-      compressImageQuality: 1.0,
-    });
-
-    console.log('Image processed to:', inputSize, 'x', inputSize);
-
-    // Step 2: Convert base64 to pixel array
-    const imageData = `data:image/jpeg;base64,${processedImage.data}`;
-    const pixelData = await extractPixelsFromBase64(imageData, inputSize);
-    
-    // Step 3: Apply ImageNet normalization
-    const normalizedData = applyImageNetNormalization(pixelData, mean, std);
-    
-    // Return as Float32Array (the expected format for the model)
-    return new Float32Array(normalizedData);
-
-  } catch (error) {
-    console.error('Image processing failed:', error);
-    throw new Error(`Image processing failed: ${error.message}`);
-  }
-};
-
-// Extract pixel data from base64 image
-const extractPixelsFromBase64 = async (base64ImageData, size) => {
-  console.log('doing some weird base64 shit')
-  return new Promise((resolve, reject) => {
-    try {
-      // Create a canvas element (React Native compatible approach)
-      const canvas = {
-        width: size,
-        height: size,
-        getContext: () => ({
-          drawImage: () => {},
-          getImageData: () => ({
-            data: new Uint8ClampedArray(size * size * 4) // RGBA
-          })
-        })
-      };
-
-      // In React Native, we'll decode the base64 directly
-      const binaryString = atob(base64ImageData.split(',')[1]);
-      const bytes = new Uint8Array(binaryString.length);
-      
-      for (let i = 0; i < binaryString.length; i++) {
-        bytes[i] = binaryString.charCodeAt(i);
-      }
-
-      // Simulate pixel extraction for RGB (simplified JPEG decoder)
-      const pixelArray = new Uint8ClampedArray(size * size * 3);
-      const bytesPerPixel = Math.floor(bytes.length / (size * size));
-      
-      for (let i = 0; i < size * size; i++) {
-        const byteIndex = i * bytesPerPixel;
-        
-        // Extract RGB values (simplified - real JPEG decoding is complex)
-        pixelArray[i * 3] = bytes[byteIndex] || 128; // R
-        pixelArray[i * 3 + 1] = bytes[byteIndex + 1] || 128; // G  
-        pixelArray[i * 3 + 2] = bytes[byteIndex + 2] || 128; // B
-      }
-      
-      resolve(pixelArray);
-      
-    } catch (error) {
-      reject(new Error(`Pixel extraction failed: ${error.message}`));
+    // Step 3: Convert base64 to buffer for jpeg-js
+    const binaryString = atob(base64);
+    const buffer = new Uint8Array(binaryString.length);
+    for (let i = 0; i < binaryString.length; i++) {
+      buffer[i] = binaryString.charCodeAt(i);
     }
-  });
-};
 
-// Apply ImageNet normalization to pixel data
-const applyImageNetNormalization = (pixelData, mean, std) => {
-  const normalizedData = new Float32Array(pixelData.length);
-  console.log('doing some weird normalization shit')
-  for (let i = 0; i < pixelData.length; i++) {
-    const channelIndex = i % 3; // R=0, G=1, B=2
+    // Step 4: Decode JPEG to get raw RGBA pixels
+    const decoded = jpeg.decode(buffer, { useTArray: true });
     
-    // Convert from 0-255 to 0-1, then apply ImageNet normalization
-    const normalizedPixel = (pixelData[i] / 255.0 - mean[channelIndex]) / std[channelIndex];
-    normalizedData[i] = normalizedPixel;
+    // Step 5: Apply ResNet preprocessing
+    const preprocessed = new Float32Array(INPUT_SIZE * INPUT_SIZE * 3);
+    let idx = 0;
+    
+    // decoded.data is RGBA, we need RGB->BGR conversion
+    for (let i = 0; i < decoded.data.length; i += 4) {
+      const r = decoded.data[i];
+      const g = decoded.data[i + 1];
+      const b = decoded.data[i + 2];
+      // Skip alpha channel (i + 3)
+      
+      // Convert RGB to BGR and subtract means
+      preprocessed[idx] = b - IMAGENET_MEAN_BGR[0];     // B
+      preprocessed[idx + 1] = g - IMAGENET_MEAN_BGR[1]; // G
+      preprocessed[idx + 2] = r - IMAGENET_MEAN_BGR[2]; // R
+      idx += 3;
+    }
+    
+    return preprocessed;
+    
+  } catch (error) {
+    console.error('Preprocessing error:', error);
+    throw error;
   }
-  
-  return normalizedData;
 };
 
   const handleCameraCapture = () => {
