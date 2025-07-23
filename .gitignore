@@ -76,3 +76,4 @@ yarn-error.log
 
 #ignore the model cause too big
 assets/model.tflite
+ios/model.tflite
